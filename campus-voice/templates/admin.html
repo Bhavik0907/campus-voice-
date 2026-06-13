@@ -1,0 +1,287 @@
+{% extends 'base.html' %}
+{% block title %}Admin Panel{% endblock %}
+{% block page_title %}Admin Dashboard{% endblock %}
+{% block page_sub %}Manage and resolve all campus complaints{% endblock %}
+
+{% block content %}
+
+<!-- ── Analytics Cards ─────────────────────────────────────────────── -->
+<div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+  <div class="stat-card">
+    <div class="stat-icon blue"><i class="bi bi-clipboard2-data-fill"></i></div>
+    <div><div class="stat-value">{{ total }}</div><div class="stat-label">Total Complaints</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon amber"><i class="bi bi-hourglass-split"></i></div>
+    <div><div class="stat-value">{{ pending }}</div><div class="stat-label">Pending</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon cyan"><i class="bi bi-arrow-repeat"></i></div>
+    <div><div class="stat-value">{{ inprog }}</div><div class="stat-label">In Progress</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon green"><i class="bi bi-check-circle-fill"></i></div>
+    <div><div class="stat-value">{{ resolved }}</div><div class="stat-label">Resolved</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon red"><i class="bi bi-exclamation-triangle-fill"></i></div>
+    <div><div class="stat-value">{{ high_pri }}</div><div class="stat-label">High Priority</div></div>
+  </div>
+</div>
+
+<!-- ── Filter / Search Bar ────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-body" style="padding:16px 20px">
+    <form method="GET" action="{{ url_for('admin_panel') }}" class="filter-bar">
+      <div class="input-wrap flex-grow-1" style="min-width:200px">
+        <i class="bi bi-search input-icon"></i>
+        <input type="text" id="search-input" name="q" class="form-control"
+               placeholder="Search by title, description, student…"
+               value="{{ search_q }}"/>
+      </div>
+      <select name="status" class="form-control" style="max-width:160px" onchange="this.form.submit()">
+        <option value="">All Statuses</option>
+        {% for s in statuses %}
+        <option value="{{ s }}" {% if status_f == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <select name="category" class="form-control" style="max-width:175px" onchange="this.form.submit()">
+        <option value="">All Categories</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}" {% if category_f == cat %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn-cv btn-primary-cv btn-sm-cv">
+        <i class="bi bi-funnel-fill"></i> Filter
+      </button>
+      {% if status_f or category_f or search_q %}
+      <a href="{{ url_for('admin_panel') }}" class="btn-cv btn-outline-cv btn-sm-cv">
+        <i class="bi bi-x-circle"></i> Clear
+      </a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- ── Complaints Table ───────────────────────────────────────────── -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">
+      <i class="bi bi-table me-2 text-primary"></i>All Complaints
+      <span class="badge ms-2" style="background:var(--primary-light);color:var(--primary);font-size:12px">
+        {{ complaints|length }}
+      </span>
+    </span>
+  </div>
+
+  {% if complaints %}
+  <div class="table-wrapper">
+    <table class="cv-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Student</th>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Priority</th>
+          <th>Status</th>
+          <th>Image</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in complaints %}
+        {% set status_map = {
+          'Pending':     'badge-pending',
+          'Assigned':    'badge-assigned',
+          'In Progress': 'badge-inprogress',
+          'Resolved':    'badge-resolved'
+        } %}
+        {% set priority_map = {
+          'Low':    'badge-low',
+          'Medium': 'badge-medium',
+          'High':   'badge-high'
+        } %}
+        <tr>
+          <!-- ID -->
+          <td><span class="comp-id">#{{ c['id'] }}</span></td>
+
+          <!-- Student -->
+          <td>
+            <div style="font-weight:600;font-size:13px">{{ c['student_name'] }}</div>
+            <div style="font-size:11.5px;color:var(--muted)">{{ c['student_email'] }}</div>
+          </td>
+
+          <!-- Title -->
+          <td style="max-width:200px">
+            <div style="font-weight:500;font-size:13.5px">{{ c['title'] }}</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:2px">
+              {{ c['description'][:50] }}{% if c['description']|length > 50 %}…{% endif %}
+            </div>
+          </td>
+
+          <!-- Category -->
+          <td style="font-size:12.5px;white-space:nowrap">{{ c['category'] }}</td>
+
+          <!-- Priority (inline update) -->
+          <td>
+            <form method="POST" action="{{ url_for('update_complaint', cid=c['id']) }}"
+                  class="quick-update" style="display:inline">
+              <input type="hidden" name="status" value="{{ c['status'] }}"/>
+              <select name="priority" class="form-control"
+                      style="padding:4px 8px;font-size:12px;width:auto;min-width:90px;
+                             border-color:{% if c['priority']=='High' %}#fca5a5{% elif c['priority']=='Medium' %}#fde68a{% else %}#bbf7d0{% endif %}">
+                {% for p in priorities %}
+                <option value="{{ p }}" {% if c['priority']==p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </td>
+
+          <!-- Status (inline update) -->
+          <td>
+            <form method="POST" action="{{ url_for('update_complaint', cid=c['id']) }}"
+                  class="quick-update" style="display:inline">
+              <input type="hidden" name="priority" value="{{ c['priority'] }}"/>
+              <select name="status" class="form-control"
+                      style="padding:4px 8px;font-size:12px;width:auto;min-width:120px">
+                {% for s in statuses %}
+                <option value="{{ s }}" {% if c['status']==s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </td>
+
+          <!-- Image -->
+          <td>
+            {% if c['image'] %}
+              <img src="{{ url_for('static', filename='uploads/' + c['image']) }}"
+                   class="img-thumb" alt="img"
+                   onclick="openImagePreview('{{ url_for('static', filename='uploads/' + c['image']) }}')"
+                   style="cursor:pointer" title="Click to enlarge"/>
+            {% else %}
+              <span style="color:#cbd5e1;font-size:12px">—</span>
+            {% endif %}
+          </td>
+
+          <!-- Date -->
+          <td style="font-size:12px;color:var(--muted);white-space:nowrap">
+            {{ c['created_at'][:10] }}
+          </td>
+
+          <!-- Actions -->
+          <td>
+            <div class="d-flex gap-2">
+              <!-- Detail modal -->
+              <button class="btn-cv btn-outline-cv btn-sm-cv"
+                      data-complaint-id="{{ c['id'] }}"
+                      title="View Details">
+                <i class="bi bi-eye-fill"></i>
+              </button>
+              <!-- Delete -->
+              <form method="POST" action="{{ url_for('delete_complaint', cid=c['id']) }}" style="display:inline">
+                <button type="submit" class="btn-cv btn-danger-cv btn-sm-cv delete-btn" title="Delete">
+                  <i class="bi bi-trash3-fill"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-inbox-fill"></i>
+    <h4>No complaints found</h4>
+    <p>{% if status_f or category_f or search_q %}Try adjusting your filters.{% else %}No complaints have been submitted yet.{% endif %}</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── Complaint Detail Modal ─────────────────────────────────────── -->
+<div class="modal fade" id="complaintModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-clipboard2-pulse me-2 text-primary"></i>
+          Complaint Details — <span id="m-id"></span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Title</label>
+            <p id="m-title" style="font-weight:600;font-size:15px;margin:2px 0 0"></p>
+          </div>
+          <div class="col-sm-6">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Student</label>
+            <p id="m-student" style="font-size:13.5px;margin:2px 0 0"></p>
+          </div>
+          <div class="col-sm-4">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Category</label>
+            <p id="m-category" style="font-size:13.5px;margin:2px 0 0"></p>
+          </div>
+          <div class="col-sm-4">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Status</label>
+            <p id="m-status" style="font-size:13.5px;margin:2px 0 0"></p>
+          </div>
+          <div class="col-sm-4">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Priority</label>
+            <p id="m-priority" style="font-size:13.5px;margin:2px 0 0"></p>
+          </div>
+          <div class="col-12">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Description</label>
+            <p id="m-description" style="font-size:13.5px;margin:2px 0 0;line-height:1.7;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid var(--border)"></p>
+          </div>
+          <div class="col-sm-6">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Submitted</label>
+            <p id="m-created" style="font-size:13px;margin:2px 0 0;color:var(--muted)"></p>
+          </div>
+          <div class="col-12">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Attached Image</label>
+            <div class="mt-1">
+              <img id="m-image" src="" alt="Complaint image"
+                   style="display:none;max-width:100%;max-height:320px;border-radius:10px;border:1px solid var(--border)"/>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cv btn-outline-cv" data-bs-dismiss="modal">
+          <i class="bi bi-x"></i> Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Image Preview Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-image me-2"></i>Image Preview</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center p-3">
+        <img id="preview-img" src="" alt="Preview" style="max-width:100%;border-radius:8px"/>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openImagePreview(src) {
+  document.getElementById('preview-img').src = src;
+  new bootstrap.Modal(document.getElementById('imageModal')).show();
+}
+</script>
+{% endblock %}

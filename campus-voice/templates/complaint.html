@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}New Complaint{% endblock %}
+{% block page_title %}Submit Complaint{% endblock %}
+{% block page_sub %}Report an issue on campus{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-xl-8 col-lg-10">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-plus-circle-fill me-2 text-primary"></i>New Complaint</span>
+        <a href="{{ url_for('dashboard') }}" class="btn-cv btn-outline-cv btn-sm-cv">
+          <i class="bi bi-arrow-left"></i> Back
+        </a>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('new_complaint') }}" enctype="multipart/form-data" novalidate>
+
+          <div class="form-group">
+            <label class="form-label" for="title">Complaint Title <span class="text-danger">*</span></label>
+            <div class="input-wrap">
+              <i class="bi bi-card-heading input-icon"></i>
+              <input type="text" id="title" name="title" class="form-control"
+                     placeholder="Brief title describing the issue" maxlength="120" required/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="category">Category <span class="text-danger">*</span></label>
+            <div class="input-wrap">
+              <i class="bi bi-tag input-icon"></i>
+              <select id="category" name="category" class="form-control" required>
+                <option value="" disabled selected>Select a category</option>
+                {% for cat in categories %}
+                <option value="{{ cat }}">{{ cat }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="description">Description <span class="text-danger">*</span></label>
+            <textarea id="description" name="description" class="form-control"
+                      placeholder="Describe the issue in detail — location, severity, when it started…"
+                      rows="5" required></textarea>
+            <p class="form-hint"><i class="bi bi-info-circle me-1"></i>More detail helps admin resolve faster.</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Attach Image <span style="color:var(--muted)">(optional)</span></label>
+            <div class="upload-area" id="upload-area">
+              <i class="bi bi-cloud-arrow-up-fill d-block"></i>
+              <p class="mb-1" style="font-weight:600;color:var(--text)">Click or drag image here</p>
+              <p id="file-label">PNG, JPG, JPEG, GIF, WEBP — max 5 MB</p>
+              <input type="file" id="image" name="image" accept="image/*"/>
+            </div>
+          </div>
+
+          <div class="d-flex gap-3 justify-content-end">
+            <a href="{{ url_for('dashboard') }}" class="btn-cv btn-outline-cv">Cancel</a>
+            <button type="submit" class="btn-cv btn-primary-cv">
+              <i class="bi bi-send-fill"></i> Submit Complaint
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

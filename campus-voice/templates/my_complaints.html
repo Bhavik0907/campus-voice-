@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% block title %}My Complaints{% endblock %}
+{% block page_title %}My Complaints{% endblock %}
+{% block page_sub %}Track all your submitted complaints{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">
+      <i class="bi bi-clipboard2-data-fill me-2 text-primary"></i>
+      All Complaints
+      <span class="badge ms-2" style="background:var(--primary-light);color:var(--primary);font-size:12px">
+        {{ complaints|length }}
+      </span>
+    </span>
+    <a href="{{ url_for('new_complaint') }}" class="btn-cv btn-primary-cv btn-sm-cv">
+      <i class="bi bi-plus-circle-fill"></i> New Complaint
+    </a>
+  </div>
+
+  {% if complaints %}
+  <div class="table-wrapper">
+    <table class="cv-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Priority</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th>Image</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in complaints %}
+        {% set status_map = {
+          'Pending':     'badge-pending',
+          'Assigned':    'badge-assigned',
+          'In Progress': 'badge-inprogress',
+          'Resolved':    'badge-resolved'
+        } %}
+        {% set priority_map = {
+          'Low':    'badge-low',
+          'Medium': 'badge-medium',
+          'High':   'badge-high'
+        } %}
+        <tr>
+          <td><span class="comp-id">#{{ c['id'] }}</span></td>
+          <td>
+            <div style="font-weight:600;font-size:13.5px">{{ c['title'] }}</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:2px">
+              {{ c['description'][:60] }}{% if c['description']|length > 60 %}…{% endif %}
+            </div>
+          </td>
+          <td>
+            <span style="font-size:12.5px;font-weight:500">{{ c['category'] }}</span>
+          </td>
+          <td>
+            <span class="badge {{ priority_map.get(c['priority'], 'badge-low') }}">
+              {% if c['priority'] == 'High' %}<i class="bi bi-arrow-up-circle-fill me-1"></i>
+              {% elif c['priority'] == 'Medium' %}<i class="bi bi-dash-circle-fill me-1"></i>
+              {% else %}<i class="bi bi-arrow-down-circle-fill me-1"></i>{% endif %}
+              {{ c['priority'] }}
+            </span>
+          </td>
+          <td>
+            <span class="badge {{ status_map.get(c['status'], 'badge-pending') }}">
+              {% if c['status'] == 'Pending' %}<i class="bi bi-hourglass-split me-1"></i>
+              {% elif c['status'] == 'Assigned' %}<i class="bi bi-person-check-fill me-1"></i>
+              {% elif c['status'] == 'In Progress' %}<i class="bi bi-arrow-repeat me-1"></i>
+              {% else %}<i class="bi bi-check-circle-fill me-1"></i>{% endif %}
+              {{ c['status'] }}
+            </span>
+          </td>
+          <td style="color:var(--muted);font-size:12px;white-space:nowrap">
+            <i class="bi bi-calendar3 me-1"></i>{{ c['created_at'][:10] }}
+          </td>
+          <td>
+            {% if c['image'] %}
+              <img src="{{ url_for('static', filename='uploads/' + c['image']) }}"
+                   class="img-thumb" alt="Complaint image"
+                   data-bs-toggle="tooltip" title="Click to preview"
+                   onclick="openImagePreview('{{ url_for('static', filename='uploads/' + c['image']) }}')"
+                   style="cursor:pointer"/>
+            {% else %}
+              <span style="color:#cbd5e1;font-size:12px">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Summary footer -->
+  <div style="padding:14px 20px;border-top:1px solid var(--border);background:#f8fafc;font-size:12.5px;color:var(--muted);display:flex;gap:20px;flex-wrap:wrap">
+    {% set pending_count  = complaints|selectattr('status','equalto','Pending')|list|length %}
+    {% set resolved_count = complaints|selectattr('status','equalto','Resolved')|list|length %}
+    {% set high_count     = complaints|selectattr('priority','equalto','High')|list|length %}
+    <span><i class="bi bi-hourglass-split text-warning me-1"></i>Pending: <strong>{{ pending_count }}</strong></span>
+    <span><i class="bi bi-check-circle-fill text-success me-1"></i>Resolved: <strong>{{ resolved_count }}</strong></span>
+    <span><i class="bi bi-exclamation-circle-fill text-danger me-1"></i>High Priority: <strong>{{ high_count }}</strong></span>
+  </div>
+
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-clipboard2"></i>
+    <h4>No complaints submitted yet</h4>
+    <p>Submit your first campus complaint and track its progress here.</p>
+    <a href="{{ url_for('new_complaint') }}" class="btn-cv btn-primary-cv mt-3">
+      <i class="bi bi-plus-circle-fill"></i> Submit First Complaint
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Image Preview Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-image me-2"></i>Complaint Image</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center p-3">
+        <img id="preview-img" src="" alt="Preview" style="max-width:100%;border-radius:8px"/>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openImagePreview(src) {
+  document.getElementById('preview-img').src = src;
+  new bootstrap.Modal(document.getElementById('imageModal')).show();
+}
+// Init Bootstrap tooltips
+document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+</script>
+{% endblock %}
