@@ -31,6 +31,8 @@ CATEGORIES = ['Classroom','Wi-Fi / Internet','Electrical','Laboratory',
               'Library','Washroom','Canteen','Security','Other']
 STATUSES   = ['Pending','Assigned','In Progress','Resolved']
 PRIORITIES = ['Low','Medium','High']
+REWARD_POINTS = {'Low': 10, 'Medium': 20, 'High': 30}
+ASSIGNED_POINTS = 50
 
 # ── Database helpers ───────────────────────────────────────────────────────
 def get_db():
@@ -66,24 +68,32 @@ def init_db():
             email     TEXT    UNIQUE NOT NULL,
             password  TEXT    NOT NULL,
             role      TEXT    NOT NULL DEFAULT 'student',
+            points    INTEGER NOT NULL DEFAULT 0,
             created_at TEXT   DEFAULT (datetime('now'))
         )
     """)
     db.execute("""
         CREATE TABLE IF NOT EXISTS complaints (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id     INTEGER NOT NULL,
-            title       TEXT    NOT NULL,
-            description TEXT    NOT NULL,
-            category    TEXT    NOT NULL,
-            image       TEXT,
-            status      TEXT    NOT NULL DEFAULT 'Pending',
-            priority    TEXT    NOT NULL DEFAULT 'Low',
-            created_at  TEXT    DEFAULT (datetime('now')),
-            updated_at  TEXT    DEFAULT (datetime('now')),
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id       INTEGER NOT NULL,
+            title         TEXT    NOT NULL,
+            description   TEXT    NOT NULL,
+            category      TEXT    NOT NULL,
+            image         TEXT,
+            status        TEXT    NOT NULL DEFAULT 'Pending',
+            priority      TEXT    NOT NULL DEFAULT 'Low',
+            reward_points INTEGER NOT NULL DEFAULT 0,
+            created_at    TEXT    DEFAULT (datetime('now')),
+            updated_at    TEXT    DEFAULT (datetime('now')),
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
+    cols = [row[1] for row in db.execute("PRAGMA table_info(users)").fetchall()]
+    if 'points' not in cols:
+        db.execute("ALTER TABLE users ADD COLUMN points INTEGER NOT NULL DEFAULT 0")
+    cols = [row[1] for row in db.execute("PRAGMA table_info(complaints)").fetchall()]
+    if 'reward_points' not in cols:
+        db.execute("ALTER TABLE complaints ADD COLUMN reward_points INTEGER NOT NULL DEFAULT 0")
     # Seed admin account
     existing = db.execute("SELECT id FROM users WHERE email='admin@campus.edu'").fetchone()
     if not existing:
@@ -97,6 +107,22 @@ def init_db():
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXT
+
+def get_reward_level(points):
+    if points >= 150:
+        return 'Gold'
+    if points >= 75:
+        return 'Silver'
+    if points >= 30:
+        return 'Bronze'
+    return 'Starter'
+
+@app.context_processor
+def inject_user_points():
+    if 'user_id' in session and session.get('role') != 'admin':
+        user = query("SELECT points FROM users WHERE id=?", (session['user_id'],), one=True)
+        return {'current_points': user['points'] if user else 0}
+    return {}
 
 # ── Auth decorators ────────────────────────────────────────────────────────
 def login_required(f):
@@ -162,6 +188,7 @@ def login():
             session['name']    = user['name']
             session['email']   = user['email']
             session['role']    = user['role']
+            session['points']  = user['points'] if 'points' in user.keys() else 0
             flash(f'Welcome back, {user["name"]}!', 'success')
             return redirect(url_for('admin_panel') if user['role'] == 'admin'
                             else url_for('dashboard'))
@@ -186,10 +213,14 @@ def dashboard():
     inprog   = query("SELECT COUNT(*) as c FROM complaints WHERE user_id=? AND status='In Progress'", (uid,), one=True)['c']
     resolved = query("SELECT COUNT(*) as c FROM complaints WHERE user_id=? AND status='Resolved'", (uid,), one=True)['c']
     recent   = query("SELECT * FROM complaints WHERE user_id=? ORDER BY created_at DESC LIMIT 5", (uid,))
+    user     = query("SELECT points FROM users WHERE id=?", (uid,), one=True)
+    points   = user['points'] if user else 0
+    reward_level = get_reward_level(points)
     return render_template('dashboard.html',
                            total=total, pending=pending,
                            inprog=inprog, resolved=resolved,
-                           recent=recent, categories=CATEGORIES)
+                           recent=recent, categories=CATEGORIES,
+                           points=points, reward_level=reward_level)
 
 @app.route('/complaint/new', methods=['GET','POST'])
 @login_required
@@ -239,6 +270,23 @@ def admin_panel():
     inprog   = query("SELECT COUNT(*) as c FROM complaints WHERE status='In Progress'", one=True)['c']
     resolved = query("SELECT COUNT(*) as c FROM complaints WHERE status='Resolved'", one=True)['c']
     high_pri = query("SELECT COUNT(*) as c FROM complaints WHERE priority='High'", one=True)['c']
+    reward_count = query("SELECT COUNT(*) as c FROM complaints WHERE assigned_points>0 OR reward_points>0", one=True)['c']
+    assigned_count = query("SELECT COUNT(*) as c FROM complaints WHERE assigned_points>0", one=True)['c']
+    resolved_count = query("SELECT COUNT(*) as c FROM complaints WHERE reward_points>0", one=True)['c']
+    total_reward_points = query("SELECT IFNULL(SUM(assigned_points + reward_points), 0) as c FROM complaints", one=True)['c']
+    rewarded_students = query(
+        """
+        SELECT u.id, u.name, u.email,
+               SUM(c.assigned_points + c.reward_points) AS total_points,
+               SUM(CASE WHEN c.assigned_points>0 THEN 1 ELSE 0 END) AS assigned_count,
+               SUM(CASE WHEN c.reward_points>0 THEN 1 ELSE 0 END) AS resolved_count
+        FROM users u
+        JOIN complaints c ON c.user_id=u.id
+        GROUP BY u.id
+        HAVING total_points > 0
+        ORDER BY total_points DESC
+        """
+    )
 
     status_f   = request.args.get('status','')
     category_f = request.args.get('category','')
@@ -261,6 +309,11 @@ def admin_panel():
                            total=total, pending=pending,
                            inprog=inprog, resolved=resolved,
                            high_pri=high_pri, complaints=complaints,
+                           reward_count=reward_count,
+                           assigned_count=assigned_count,
+                           resolved_count=resolved_count,
+                           total_reward_points=total_reward_points,
+                           rewarded_students=rewarded_students,
                            categories=CATEGORIES, statuses=STATUSES,
                            priorities=PRIORITIES,
                            status_f=status_f, category_f=category_f,
@@ -274,9 +327,36 @@ def update_complaint(cid):
     if status not in STATUSES or priority not in PRIORITIES:
         flash('Invalid status or priority.', 'danger')
         return redirect(url_for('admin_panel'))
-    execute("""UPDATE complaints SET status=?, priority=?, updated_at=datetime('now')
-               WHERE id=?""", (status, priority, cid))
-    flash('Complaint updated successfully.', 'success')
+
+    row = query("SELECT user_id, status, reward_points, assigned_points FROM complaints WHERE id=?", (cid,), one=True)
+    if not row:
+        flash('Complaint not found.', 'danger')
+        return redirect(url_for('admin_panel'))
+
+    reward_awarded = False
+    assigned_awarded = False
+
+    if status == 'Assigned' and (row['assigned_points'] == 0 or row['assigned_points'] is None):
+        execute("UPDATE users SET points = points + ? WHERE id=?", (ASSIGNED_POINTS, row['user_id']))
+        execute("""UPDATE complaints SET status=?, priority=?, assigned_points=?, updated_at=datetime('now')
+                   WHERE id=?""", (status, priority, ASSIGNED_POINTS, cid))
+        assigned_awarded = True
+    elif status == 'Resolved' and (row['reward_points'] == 0 or row['reward_points'] is None):
+        reward = REWARD_POINTS.get(priority, 10)
+        execute("UPDATE users SET points = points + ? WHERE id=?", (reward, row['user_id']))
+        execute("""UPDATE complaints SET status=?, priority=?, reward_points=?, updated_at=datetime('now')
+                   WHERE id=?""", (status, priority, reward, cid))
+        reward_awarded = True
+    else:
+        execute("""UPDATE complaints SET status=?, priority=?, updated_at=datetime('now')
+                   WHERE id=?""", (status, priority, cid))
+
+    message = 'Complaint updated successfully.'
+    if assigned_awarded:
+        message += ' 50 points awarded for assignment.'
+    elif reward_awarded:
+        message += ' Reward points awarded.'
+    flash(message, 'success')
     return redirect(url_for('admin_panel'))
 
 @app.route('/admin/complaint/<int:cid>/delete', methods=['POST'])

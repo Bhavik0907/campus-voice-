@@ -28,6 +28,7 @@
           <th>Category</th>
           <th>Priority</th>
           <th>Status</th>
+          <th>Reward</th>
           <th>Date</th>
           <th>Image</th>
         </tr>
@@ -72,6 +73,15 @@
               {% else %}<i class="bi bi-check-circle-fill me-1"></i>{% endif %}
               {{ c['status'] }}
             </span>
+          </td>
+          <td style="font-size:12px;color:var(--muted);white-space:nowrap">
+            {% if c['reward_points'] and c['reward_points'] > 0 %}
+              <span class="badge badge-success-cv" style="background:#ecfdf5;color:#166534;border:1px solid #bbf7d0;">
+                <i class="bi bi-gift-fill me-1"></i>{{ c['reward_points'] }} pts
+              </span>
+            {% else %}
+              <span style="color:#94a3b8;">—</span>
+            {% endif %}
           </td>
           <td style="color:var(--muted);font-size:12px;white-space:nowrap">
             <i class="bi bi-calendar3 me-1"></i>{{ c['created_at'][:10] }}

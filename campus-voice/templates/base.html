@@ -79,6 +79,11 @@
       <span class="badge bg-light text-dark border" style="font-size:12px">
         <i class="bi bi-person-circle me-1"></i>{{ session.get('name','Guest') }}
       </span>
+      {% if session.get('role') != 'admin' and current_points is defined %}
+      <span class="badge bg-light text-dark border" style="font-size:12px">
+        <i class="bi bi-star-fill me-1"></i>{{ current_points }} pts
+      </span>
+      {% endif %}
     </div>
   </div>
 

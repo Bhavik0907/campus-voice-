@@ -27,6 +27,18 @@
     <div class="stat-icon red"><i class="bi bi-exclamation-triangle-fill"></i></div>
     <div><div class="stat-value">{{ high_pri }}</div><div class="stat-label">High Priority</div></div>
   </div>
+  <div class="stat-card">
+    <div class="stat-icon violet"><i class="bi bi-award-fill"></i></div>
+    <div><div class="stat-value">{{ reward_count }}</div><div class="stat-label">Rewarded Complaints</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon cyan"><i class="bi bi-gift-fill"></i></div>
+    <div><div class="stat-value">{{ assigned_count }}</div><div class="stat-label">Assigned Rewards</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon blue"><i class="bi bi-stars"></i></div>
+    <div><div class="stat-value">{{ total_reward_points }}</div><div class="stat-label">Total Points Given</div></div>
+  </div>
 </div>
 
 <!-- ── Filter / Search Bar ────────────────────────────────────────── -->
@@ -60,6 +72,46 @@
       </a>
       {% endif %}
     </form>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title"><i class="bi bi-people-fill me-2 text-primary"></i>Rewarded Students</span>
+  </div>
+  <div class="card-body">
+    {% if rewarded_students %}
+    <div class="table-wrapper">
+      <table class="cv-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Email</th>
+            <th>Points Given</th>
+            <th>Assigned Awards</th>
+            <th>Resolved Awards</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in rewarded_students %}
+          <tr>
+            <td style="font-weight:600">{{ user['name'] }}</td>
+            <td style="font-size:12px;color:var(--muted)">{{ user['email'] }}</td>
+            <td>{{ user['total_points'] }}</td>
+            <td>{{ user['assigned_count'] }}</td>
+            <td>{{ user['resolved_count'] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bi bi-gift"></i>
+      <h4>No rewards given yet</h4>
+      <p>Once complaints are assigned or resolved, reward data will appear here.</p>
+    </div>
+    {% endif %}
   </div>
 </div>
 
